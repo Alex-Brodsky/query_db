@@ -1,0 +1,111 @@
+id	query_name	query_desc	tags	query_body
+pBjeMVLBzMRnnvHJEKtDJnnz	Most QB Wins	Most wins by a starting QB	[QB,QB Wins,Quarterback,Quaterback Wins]	SELECT core_player_name_full, sum(core_win) as wins FROM r360_player_games where core_player_position_primary = 'QB' and core_season_type = 'REG' group by 1 order by 2 desc
+MBYzNXbNgDaPBCSNNtaCDBLX	Most Single Game Rushing Yards	Most rushing yards in a single regular season game	[RB,Rushing,Rushing Yards]	SELECT core_player_name_full, core_team_name,core_week,core_season,off_rush_yards FROM default.r360_player_games WHERE core_season_type = 'REG' order by off_rush_yards desc
+kXIsCZDsqFmAZYwwjwYFifbY	Opposing DB QB Rating	""	""	select db.core_player_name_full,array_join(array_agg(distinct db.core_team_name),', ','') as team, array_join(array_agg(distinct db.core_player_position_primary),', ','') as team, sum(db.def_receive_target) as targets, sum(qb.off_pass_complete) as cmps, sum(qb.off_pass_yards) as yds, sum(qb.off_pass_touchdown) as tds, sum(qb.off_interception) as ints,  round(CAST((((    array_sort(ARRAY[0, 2.375, ((COALESCE((sum(qb.off_pass_complete) / cast(NULLIF(sum(qb.off_pass_attempt), 0) AS double) ), 0) - 0.3) * 5)])[2]  + array_sort(ARRAY[0, 2.375, ((COALESCE((sum(qb.off_pass_yards) / cast(NULLIF(sum(qb.off_pass_attempt), 0) AS double) ), 0) - 3) * 0.25)])[2]  + array_sort(ARRAY[0, 2.375, (COALESCE((sum(qb.off_pass_touchdown) / cast(NULLIF(sum(qb.off_pass_attempt), 0) AS double) ), 0) * 20)])[2]  + array_sort(ARRAY[0, 2.375, (2.375 - (COALESCE((sum(qb.off_interception) / cast(NULLIF(sum(qb.off_pass_attempt), 0) AS double) ), 0) * 25))])[2]  ) / 6) * 100) AS double) , 1) as passer_rating  from r360_player_plays db  inner join r360_player_plays qb on db.core_play_id = qb.core_play_id and db.core_team_id <> qb.core_team_id and db.def_receive_target = 1 and qb.off_pass_attempt = 1  where db.core_season_type = 'REG' and db.core_season = 2017  AND db.core_player_position_primary IN ('DB','CB','S','')   group by db.core_player_id, db.core_player_name_full
+xcmnTSyAiIiXZtHFVmYionFg	EZ Targets by Team	Returns top player in terms of EZ targets by each team	End Zone,Weekly Report,End Zone Targets	"with 
+tez as (
+	select core_team_name, sum(off_receive_target) as teamtgs 
+	from r360_team_plays
+	where core_season=2017 and core_season_type = 'REG' and core_field_position+core_pass_attempt_yards>=100
+	group by 1
+	),
+endzone as (
+	select core_player_name_full, core_play_description, core_field_position, core_week, core_pass_attempt_yards, core_team_name, core_player_position_primary,
+		off_receive_target as rt, off_reception as rc
+	from r360_player_plays
+	where core_season=2017 and core_season_type = 'REG' and core_field_position+core_pass_attempt_yards>=100
+		--and off_receive_target=1 --and core_week=6
+	),
+pez as (
+	select core_player_name_full as player, core_team_name, core_player_position_primary, sum(rt) as plytgs
+	from endzone
+	group by 1, 2, 3
+	order by sum(rt) desc
+	),
+a as (
+	select tez.core_team_name as Team, teamtgs as TeamEZTargets, pez.player as Player, pez.plytgs as PlayerEZTargets, 1.0*pez.plytgs/teamtgs as PercOfTeam
+	from pez
+	inner join tez on pez.core_team_name=tez.core_team_name
+	),
+rk as (select *, rank() over (partition by a.Team order by a.PercOfTeam desc) as TeamRank
+from a
+order by 6)
+select * from rk where TeamRank=1
+"
+NAqfWrMXSvGkaDWUSBTnhuXI	Active Pass Att w/o an INT Streak	Active streaks for pass attempts without an INT	Weekly Report,Streak,Active Streak,INT	"WITH s1 AS (
+	SELECT core_player_id, core_player_name_full, core_team_name, core_game_date, core_season, core_week, core_quarter, core_clock, core_gsis_play_id, 
+		off_pass_attempt, off_interception,
+		ROW_NUMBER() OVER(PARTITION BY core_player_id ORDER BY core_game_date DESC, core_quarter DESC, core_clock, core_gsis_play_id DESC) AS pass_att_num
+	FROM &quot;default&quot;.r360_player_plays
+	WHERE core_season_type = 'REG' AND off_pass_attempt > 0 AND core_player_position_primary = 'QB' AND core_current_status = 'ACTIVE'
+	),
+s2 AS (
+	SELECT *, pass_att_num - ROW_NUMBER() OVER(PARTITION BY core_player_id ORDER BY core_game_date DESC, core_quarter DESC, core_clock, core_gsis_play_id DESC) AS streak_id
+	FROM s1
+	WHERE off_interception = 0
+	)
+SELECT core_player_name_full AS &quot;Player&quot;, array_join(array_agg(DISTINCT core_team_name), ', ') AS &quot;Team(s)&quot;, count(core_player_name_full) AS &quot;Passes w/o INT&quot;
+FROM s2
+WHERE streak_id = 0
+GROUP BY 1
+ORDER BY 3 DESC"
+YekRVgzSoyvgudofXpDiIqgF	Active Sack Streak	Active streaks for consecutive games with at least 1.0 sacks	Weekly Report,Streak,Active Streak,Sacks	"WITH s1 AS (
+	SELECT core_player_id, core_player_name_full, core_team_name, core_game_date, core_season, core_week, COALESCE(def_sack, 0) AS def_sack,
+		ROW_NUMBER() OVER(PARTITION BY core_player_id ORDER BY core_game_date DESC) AS game_number
+	FROM &quot;default&quot;.r360_player_games 
+	WHERE core_status IN ('played','started') AND core_season_type = 'REG' AND core_season >= 2016
+	),
+s2 AS (
+	SELECT *, game_number - ROW_NUMBER() OVER(PARTITION BY core_player_id ORDER BY core_game_date DESC) AS streak_id
+	FROM s1
+	WHERE def_sack >= 1 -- Change to def_sack >= 1 for 2nd part
+	)
+SELECT core_player_id, array_join(array_agg(DISTINCT core_player_name_full), ', ') AS &quot;Player&quot;, 
+	array_join(array_agg(DISTINCT core_team_name), ', ') AS &quot;Team(s)&quot;, count(core_game_date) AS &quot;0.5 Sack Streak&quot;
+FROM s2
+WHERE streak_id = 0
+GROUP BY 1
+ORDER BY 4 DESC"
+dbMQoSlbnjFbSVyvNkZafnmA	Team Strength of Schedule	Each team's 2017 strength of schedule (games played)	Weekly Report,Strength of Schedule,SoS	"WITH s1 AS (
+	SELECT ts.team_id, ts.season_id, t.full_name, ts.record_wins, ts.record_losses, ts.record_ties
+	FROM &quot;default&quot;.esb_team_stats ts
+	INNER JOIN &quot;default&quot;.esb_teams t ON ts.team_id = t.team_id AND ts.season_id = t.season_id
+		AND t.team_type = 'TEAM'
+	WHERE ts.season_id = 2017 AND ts.season_type = 'REG' AND ts.&quot;role&quot; = 'TM'
+	),
+s2 AS (
+	SELECT tgs.season_id, gs.week, tgs.game_id, tgs.team_id, t.full_name, 
+		s1.full_name AS opponent, ogs.team_id AS opp_team_id, s1.record_wins AS opp_wins, s1.record_losses AS opp_losses,
+		s1.record_ties AS opp_ties
+	FROM &quot;default&quot;.esb_team_game_stats tgs
+	INNER JOIN &quot;default&quot;.esb_teams t ON tgs.team_id = t.team_id AND tgs.season_id = t.season_id
+	INNER JOIN &quot;default&quot;.esb_game_schedules gs ON tgs.game_id = gs.game_id AND gs.season_type = 'REG' AND gs.season_id = 2017
+	INNER JOIN &quot;default&quot;.esb_team_game_stats ogs ON tgs.game_id = ogs.game_id AND tgs.team_id != ogs.team_id
+		AND ogs.&quot;role&quot; = 'TM'
+	INNER JOIN s1 ON ogs.team_id = s1.team_id
+	WHERE tgs.&quot;role&quot; = 'TM'
+	)
+SELECT season_id, full_name, sum(opp_wins) AS opp_wins, sum(opp_losses) AS opp_losses, sum(opp_ties) AS opp_ties,
+	(1.0 * sum(opp_wins) + 0.5 * sum(opp_ties)) / (sum(opp_wins) + sum(opp_losses) + sum(opp_ties)) AS opp_win_pct
+FROM s2
+GROUP BY 1, 2
+ORDER BY 2"
+jAHAoyBIZmbevkGFQnmoxHWD	Teammate Trio Scrimmage Yards	Most total scrimmage yards from a teammate trio	Scrimmage Yards,Trio,Teammate Trio	"with sub1 as (
+select pts.esb_id, p.display_name, coalesce(pts.rushing_yards, 0) + coalesce(pts.receiving_yards, 0) as yards, pts.team_id, 
+rank()over(partition by pts.team_id order by (coalesce(pts.rushing_yards, 0) + coalesce(pts.receiving_yards, 0)) desc) as rnk
+from esb_person_team_stats pts 
+inner join esb_persons p 
+on p.esb_id = pts.esb_id
+where pts.season_type = 'REG' and pts.season_id = 2017)
+ 
+select t.full_name, p1.display_name, p1.yards, p2.display_name, p2.yards, p3.display_name,
+p3.yards, p1.yards + p2.yards + p3.yards as total
+from sub1 p1 
+inner join sub1 p2  
+on p1.team_id = p2.team_id and p1.rnk >= 1 and p2.rnk >= 2
+inner join sub1 p3
+on p3.team_id = p1.team_id and p3.rnk >= 3 and p3.rnk <= 10
+inner join esb_teams t 
+on t.team_id = p1.team_id and t.season_id = 2017
+where p1.esb_id != p2.esb_id and p2.esb_id != p3.esb_id and p1.esb_id != p3.esb_id and p1.rnk <= p2.rnk and p2.rnk <= p3.rnk
+order by total desc"

@@ -1,0 +1,242 @@
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>D3 Demo: Linear scales</title>
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.0/jquery.min.js"></script>
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+        <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro' rel='stylesheet' type='text/css'>
+
+            <!-- Google fonts -->
+
+        <!-- D3.js -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js" charset="utf-8"></script>
+
+        <style type="text/css">
+
+        body {
+          font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+          height: 100%;
+          overflow: hidden;
+        }
+
+        .sidenav {
+          border-right: 1px solid black;
+          position: absolute;
+          top: 0px;
+          bottom: 0;
+          left: 0;
+          width: 25%;
+          overflow-y: scroll; 
+        }
+
+        #main-page {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            overflow-y: scroll;
+            width: 75%;
+        }
+
+        #show-query {
+            white-space: pre-wrap;
+        }
+
+        .query_sidebar {
+            margin: 6px;
+            padding: 5px;
+            border-bottom: 1px solid black;
+        }
+
+        .query_sidebar h5 {
+            margin-bottom: 2px;
+        }
+
+        .active {
+            background-color: #f1f1f1;
+        }
+
+        .query_sidebar h5 {
+            font-weight: bold;
+        }
+
+        #my-modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            overflow: auto;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; 
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; 
+        }
+
+        #delete-query {
+            float: right;
+        }
+
+        #modal-delete-confirm {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 25%;
+            height: 100%;
+            overflow: auto;
+        }
+
+
+        </style>
+
+
+
+    </head>
+    <body>
+
+        <div class="container-fluid">
+
+            <div class='col-sm-3 sidenav'>
+                <h4><strong>Queries</strong></h4><button id='add-query' class='btn btn-primary'>New Query</button>
+                <form class='form-inline' method='post' action='/search_query'>
+                    <input id="search" type="text" class="form-control" name="search" placeholder="Search">
+                    <button type='submit' class='btn btn-primary'>Submit</button>
+                </form>
+                <% if @search_term then %> 
+                    <p><i>Searching for: <%= @search_term %></i></p>
+                    <button onclick="location.href = '/';" class='btn btn-primary'>Cancel Search</button>
+                <% end %>
+                <ul id='sidenav-test' class="nav nav-pills nav-stacked">
+
+                    <% @query_dat.each do |d| %>
+
+                        <li class='query-li'>
+                            <div class='query_sidebar' query_body = <%= '"' + d['query_body'].to_s + '"' %> query_id = <%= '"' + d['id'].to_s + '"' %> >
+                                <h5><%= d['query_name'] %></h5><span><i><%= d['query_desc'] %></i></span>
+                                <p><%= d['query_body'].to_s[0..39] + "..." %></p>
+                            </div>
+                        </li>
+
+                    <% end %>
+
+                </ul>
+
+            </div>
+
+            <div class='col-sm-7' id='main-page' >
+                <button id='show-edit-modal' class='btn btn-primary'>Edit Query</button>
+                <button id='show-delete-modal' class='btn btn-primary'>Delete Query</button>
+                <div id="show-query">
+                </div>
+            </div>
+
+
+            <div id="my-modal" class="col-sm-4">
+                <div class='modal-content'>
+                    <form action="/submit_query" method="post">
+                        <div class="form-group">
+                            <label for="title">Name</label>
+                            <input type="text" class='form-control' name="title">
+                        </div>
+                        <div class="form-group">
+                            <label for="desc">Description</label>
+                            <input type="text" class='form-control' name="desc">
+                        </div>
+                       <div class="form-group">
+                            <label for="tags">Tags</label>
+                            <input type="text" class='form-control' name="tags">
+                        </div>
+                       <div class="form-group">
+                            <label for="query">Query</label>
+                            <textarea rows="5" class='form-control' name="query"></textarea>
+                        </div>
+                        <button id="submit-query" type='submit' class='btn btn-primary'>Submit</button>
+                    </form>
+                        <button id="cancel-query" class='btn btn-primary'>Cancel</button>
+                </div>
+            </div>
+
+            <div id='modal-delete-confirm' class='col-sm-4'>
+                <div class='modal-content'>
+                    <form method='post' action='/delete_query'>
+                        <input type='hidden' id='query-id-field' name='query_id'>
+                        <h5>Are you sure you want to delete this query?</h5>
+                        <button id='delete-query' class='btn btn-primary'>Confirm</button>
+                    </form>
+                        <button id='cancel-delete' class='btn btn-primary'>Cancel</button>
+                </div>
+            </div>
+
+        </div>
+
+    </body>
+
+    <script>
+
+        $(".query_sidebar").hover(function() {
+            $(this).toggleClass('active');
+        });
+
+        $(".query_sidebar").click(function() {
+
+            var body = $(this).attr("query_body");
+            var id = $(this).attr("query_id");
+            var title = $(this).children('h5').text();
+            var desc = $(this).children('span').text();
+
+            $(this).toggleClass('selected');
+            $(this).not(this).removeClass('selected');
+            $("#show-query p").remove();
+            $("#show-query pre").remove();
+            $("#show-query h3").remove();
+            $("#show-query h5").remove();
+            $("#show-query hr").remove();
+            $("#show-query").append("<h3>" + title + "</h3>").append("<h5>" + desc + "</h5> <hr>").append("<p><pre>" + body + "</pre></p>");
+            $("#query-id-field").val(id);
+
+        });
+    </script>
+
+    <script>
+
+       $('#add-query').click(function() {
+            $( '#my-modal' ).css('display','block');
+       });
+
+       $('#cancel-query').click(function() {
+            $( '#my-modal').css('display','none');
+       });
+
+       $('#show-delete-modal').click(function() {
+            $( '#modal-delete-confirm').css('display', 'block');
+       });
+
+       $('#cancel-delete').click(function() {
+            $( '#modal-delete-confirm').css('display','none');
+       })
+
+       $('#submit-query').click(function() {
+
+       })
+
+    </script>
+
+
+</html>
+
+
+
+
+
+
