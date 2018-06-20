@@ -59,11 +59,15 @@
             background-color: #f1f1f1;
         }
 
+        .selected {
+            background-color: #f1f1f1;
+        }
+
         .query_sidebar h5 {
             font-weight: bold;
         }
 
-        #my-modal {
+        #my-modal, #edit-modal {
             display: none;
             position: fixed;
             z-index: 1;
@@ -122,7 +126,7 @@
                     <% @query_dat.each do |d| %>
 
                         <li class='query-li'>
-                            <div class='query_sidebar' query_body = <%= '"' + d['query_body'].to_s + '"' %> query_id = <%= '"' + d['id'].to_s + '"' %> >
+                            <div class='query_sidebar' query_body = <%= '"' + d['query_body'].to_s + '"' %> query_id = <%= '"' + d['id'].to_s + '"' %> query_tags = <%= '"' + d['tags'].to_s + '"' %>>
                                 <h5><%= d['query_name'] %></h5><span><i><%= d['query_desc'] %></i></span>
                                 <p><%= d['query_body'].to_s[0..39] + "..." %></p>
                             </div>
@@ -167,6 +171,37 @@
                 </div>
             </div>
 
+            <div id="edit-modal" class="col-sm-4">
+                <div class='modal-content'>
+                    <form action="/edit_query" method="post">
+                        <div class="form-group">
+                            <label for="title">Name</label>
+                            <input type="text" class='form-control' id="edit-title" name="edit-title">
+                        </div>
+                        <div class="form-group">
+                            <label for="desc">Description</label>
+                            <input type="text" class='form-control' id="edit-desc" name="edit-desc">
+                        </div>
+                       <div class="form-group">
+                            <label for="tags">Tags</label>
+                            <input type="text" class='form-control' id="edit-tags" name="edit-tags">
+                        </div>
+                         <div class="form-group">
+                            <label for="query-id">Query ID</label>
+                            <input type="text" class='form-control' id="edit-query-id" name="edit-query-id" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="query">Query</label>
+                            <textarea rows="5" class='form-control' id="edit-query" name="edit-query"></textarea>
+                        </div>
+                       
+
+                        <button id="submit-edit" type='submit' class='btn btn-primary'>Submit</button>
+                    </form>
+                        <button id="cancel-edit" class='btn btn-primary'>Cancel</button>
+                </div>
+            </div>
+
             <div id='modal-delete-confirm' class='col-sm-4'>
                 <div class='modal-content'>
                     <form method='post' action='/delete_query'>
@@ -195,8 +230,8 @@
             var title = $(this).children('h5').text();
             var desc = $(this).children('span').text();
 
+            $('div[class*="selected"').removeClass('selected');
             $(this).toggleClass('selected');
-            $(this).not(this).removeClass('selected');
             $("#show-query p").remove();
             $("#show-query pre").remove();
             $("#show-query h3").remove();
@@ -206,6 +241,7 @@
             $("#query-id-field").val(id);
 
         });
+
     </script>
 
     <script>
@@ -222,12 +258,38 @@
             $( '#modal-delete-confirm').css('display', 'block');
        });
 
+      
+
        $('#cancel-delete').click(function() {
             $( '#modal-delete-confirm').css('display','none');
        })
 
        $('#submit-query').click(function() {
 
+       })
+    </script>
+
+    <script>
+
+
+        $('#show-edit-modal').click(function() {
+
+            var body = $('div[class*="selected"').attr("query_body");
+            var id = $('div[class*="selected"').attr("query_id");
+            var tags = $('div[class*="selected"').attr("query_tags");
+            var title = $('div[class*="selected"').children('h5').text();
+            var desc = $('div[class*="selected"').children('span').text();
+
+            $( '#edit-modal' ).css('display','block');
+            $('#edit-title').val(title);
+            $('#edit-query-id').val(id);
+            $('#edit-tags').val(tags);
+            $('#edit-desc').val(desc);
+            $('#edit-query').val(body);
+        });
+
+        $('#cancel-edit').click(function() {
+            $( '#edit-modal').css('display','none');
        })
 
     </script>

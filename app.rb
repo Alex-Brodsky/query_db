@@ -1,5 +1,4 @@
 require 'sinatra'
-require 'pg'
 require 'csv'
 
 require_relative 'helper.rb'
@@ -64,7 +63,6 @@ end
 
 post '/search_query' do
 
-
 	@query_dat = CSV.read('public/queries.txt', col_sep: "\t")
 	keys = @query_dat[0]
 	@query_dat.shift
@@ -86,6 +84,32 @@ post '/search_query' do
 	erb :main_page
 end
 
+post '/edit_query' do 
+
+	@query_dat = CSV.read('public/queries.txt', col_sep: "\t")
+	headers = @query_dat[0]
+	@query_dat.shift
+	@new_dat = []
+	@new_dat << headers
+	@query_dat.each do |row|
+		if row[0] != params['edit-query-id'] then
+			@new_dat << row
+		end
+	end
+
+	@new_dat << [params['edit-query-id'],params['edit-title'],params['edit-desc'],params['edit-tags'],params['edit-query'].gsub('"','&quot;')]
+
+	CSV.open('public/queries.txt','wb', col_sep: "\t") do |csv|
+		
+		@new_dat.each { |row| csv << row }
+		
+	end
+	@new_dat.shift
+	@query_dat = @new_dat.map { |a| Hash[headers.zip(a)] }
+
+	erb :main_page
+
+end
 
 
 
