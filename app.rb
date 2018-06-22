@@ -1,9 +1,6 @@
 require 'sinatra'
 require 'csv'
 
-set :bind, '0.0.0.0'
-set :session, true
-
 get '/' do
 
 	print 'test'
